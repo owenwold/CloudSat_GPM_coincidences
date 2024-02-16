@@ -5,7 +5,6 @@ from datetime import timedelta
 import calendar
 import shapely as shp
 import numpy.ma as ma
-import shapely as shp
 import netCDF4
 from haversine import haversine as hs
 from sklearn.neighbors import NearestNeighbors as sknn
@@ -67,13 +66,13 @@ def CSATGPM():
     else:
         print()
         #TODO: write code to read coincidences from file
-    '''
+    
     for coincidence in coincidence_list:
         CS_time = coincidence[3]
         GPM_time = coincidence[7]
         GMIfiles, DPRfiles, CSfiles = findFiles(CS_time, GPM_time, GMI_PATH, DPR_PATH, CS_PATH)
-        map(GPM_time, CS_time, GMIfiles, CSfiles, DPRfiles, False, 1)
-    ''' 
+        map(GPM_time, CS_time, GMIfiles, CSfiles, DPRfiles, False, 1, GMI_PATH, DPR_PATH, CS_PATH)
+    
 
 
 
@@ -431,18 +430,18 @@ def createFile(coincidences, name):
 
     f.close()
 
-def map(GPMtime, CStime, GMIfiles, CSATfiles, DPRfiles, plot, channel):
+def map(GPMtime, CStime, GMIfiles, CSATfiles, DPRfiles, plot, channel, GMI_PATH, DPR_PATH, CS_PATH):
 
 
     # get CS and GPM data for full orbits, as well as very rough approximation of overlap region
     print('read gmi')
-    coinLatArray, coinLonArray, coinTbArray, TimeArray, LatArray, LonArray, TbArray, coinLatArrayS2, coinLonArrayS2, coinTbArrayS2, startIndex, endIndex = readGMI(GMIfiles, GPMtime, False)
+    coinLatArray, coinLonArray, coinTbArray, TimeArray, LatArray, LonArray, TbArray, coinLatArrayS2, coinLonArrayS2, coinTbArrayS2, startIndex, endIndex = readGMI(GMIfiles, GPMtime, False, GMI_PATH)
     
     print("read DPR")
-    FS_ZFactorMeasured, FS_Lat, FS_Lon, HS_ZFactorMeasured, HS_Lat, HS_Lon, CSendIndex = readDPR(DPRfiles, GPMtime, False)
+    FS_ZFactorMeasured, FS_Lat, FS_Lon, HS_ZFactorMeasured, HS_Lat, HS_Lon, CSendIndex = readDPR(DPRfiles, GPMtime, False, DPR_PATH)
 
     print("read CSAT")
-    [coinLat, coinLon, TimeArray, coinRadarReflectivity, coinHeight, cslatitude, cslongitude] = readCS(CSATfiles, CStime, False)
+    [coinLat, coinLon, TimeArray, coinRadarReflectivity, coinHeight, cslatitude, cslongitude] = readCS(CSATfiles, CStime, False, CS_PATH)
     
     
     S1startCrossing, S1endCrossing, swathS1 = findCrossing(coinLat,coinLon,coinLatArray,coinLonArray)
@@ -648,12 +647,12 @@ def map(GPMtime, CStime, GMIfiles, CSATfiles, DPRfiles, plot, channel):
    
     return InterpSwath, InterpS2, S2startCrossing, S2endCrossing, InterpHS_ZFactorMeasured, InterpFS_ZFactorMeasured
 
-def readGMI(GMI_files, CoinTime, secondFile):
+def readGMI(GMI_files, CoinTime, secondFile, path):
     '''
     Reads relevant GMI data from specified file and returns Lat, Lon, Tb, and ScanTime arrays from +- 30 minutes from coincidence time
     '''
         
-    f = h5py.File(GMI_files[0],'r')
+    f = h5py.File(str('' + path + '/' + GMI_files[0]),'r')
 
     S2 = list(f.keys())[1]
 
@@ -751,7 +750,7 @@ def readGMI(GMI_files, CoinTime, secondFile):
 
     if len(GMI_files) > 1:
         nextGMIFile = [GMI_files[1]]
-        [next_S1coinLatArray, next_S1coinLonArray, next_S1coinTbArray, next_TimeArray, next_S1LatArray, next_S1LonArray, next_S1TbArray, next_S2coinLatArray, next_S2coinLonArray, next_S2coinTbArray, nextStartIndex, nextEndIndex] = readGMI(nextGMIFile, CoinTime, True)
+        [next_S1coinLatArray, next_S1coinLonArray, next_S1coinTbArray, next_TimeArray, next_S1LatArray, next_S1LonArray, next_S1TbArray, next_S2coinLatArray, next_S2coinLonArray, next_S2coinTbArray, nextStartIndex, nextEndIndex] = readGMI(nextGMIFile, CoinTime, True, path)
         
         S1coinLatArray = np.append(S1coinLatArray, next_S1coinLatArray, axis=0)
         S1coinLonArray = np.append(S1coinLonArray, next_S1coinLonArray, axis=0)
@@ -777,12 +776,12 @@ def readGMI(GMI_files, CoinTime, secondFile):
     #print(endIndex)
     return [S1coinLatArray, S1coinLonArray, S1coinTbArray, TimeArray, S1LatArray, S1LonArray, S1TbArray, S2coinLatArray, S2coinLonArray, S2coinTbArray, startIndex, endIndex]
 
-def readDPR(DPRfiles, CoinTime, secondFile):
+def readDPR(DPRfiles, CoinTime, secondFile, path):
     '''
     Reads relevant DPR data from specified file and returns Lat, Lon, Tb, and ScanTime arrays from +- 30 minutes from coincidence time
     '''
     DPRfile = DPRfiles[0]
-    f = h5py.File(DPRfile,'r')
+    f = h5py.File(str('' + path + '/' + DPRfile),'r')
 
 
     #print(len(list(f.keys())))
@@ -873,7 +872,7 @@ def readDPR(DPRfiles, CoinTime, secondFile):
 
     if len(DPRfiles) > 1:
         nextDPRFile = [DPRfiles[1]]
-        [nextFS_ZFactorMeasured, nextFS_Lat, nextFS_Lon, nextHS_ZFactorMeasured, nextHS_Lat, nextHS_Lon, nextEndIndex] = readDPR(nextDPRFile, CoinTime, True)
+        [nextFS_ZFactorMeasured, nextFS_Lat, nextFS_Lon, nextHS_ZFactorMeasured, nextHS_Lat, nextHS_Lon, nextEndIndex] = readDPR(nextDPRFile, CoinTime, True, path)
         FS_Lat = np.append(FS_Lat, nextFS_Lat, axis=0)
         FS_Lon = np.append(FS_Lon, nextFS_Lon, axis=0)
         FS_ZFactorMeasured = np.append(FS_ZFactorMeasured, nextFS_ZFactorMeasured, axis=0)
@@ -891,9 +890,9 @@ def readDPR(DPRfiles, CoinTime, secondFile):
 
     return [FS_ZFactorMeasured, FS_Lat, FS_Lon, HS_ZFactorMeasured, HS_Lat, HS_Lon, endIndex]
 
-def readCS(files, coinTime, secondFile):
+def readCS(files, coinTime, secondFile, path):
 # Open HDF4 file.
-    FILE_NAME = files[0]
+    FILE_NAME = '' + path + '/' + files[0]
     
     hdf = SD(FILE_NAME, SDC.READ)
 
@@ -998,7 +997,7 @@ def readCS(files, coinTime, secondFile):
 
     if len(files) > 1 and endIndex == -1:
 
-        nextFileData = readCS(files[1], coinTime, True)
+        nextFileData = readCS(files[1], coinTime, True, path)
 
         for i in range(len(nextFileData)):
             data[i] = np.append(data[i], nextFileData[i], axis=0)
@@ -1152,8 +1151,7 @@ def findFiles(GPMTime, CSTime, GMI_PATH, DPR_PATH, CS_PATH):
                     break
                 elif (int(starthour) < int(CSstarthour)) & (endtime < CSend):
                     secondCSFile = True
-
-    
+  
     return [GMIfile, DPRfile, CSfile]
 
 def visualize(swath, LonArray, LatArray, Tb, cslongitude, cslatitude, crossingLon, crossingLat, channel_name, coinLonArray, coinLatArray, coinTb, coinLonArrayS2, coinLatArrayS2, coinTbS2, coinLon, coinLat, CStime):
